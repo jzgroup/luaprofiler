@@ -226,7 +226,10 @@ message_thread_func(void *arg) {
         if (!node) {
             break;
         }
-
+        if (msg_queue.stop == 1) {
+            break;
+        }
+        
         uint32_t msg_len = strlen(node->msg);
         uint32_t net_msg_len = htonl(msg_len); // 转换为网络字节序
         char buffer[MAX_STRING_SIZE + 4]; // 为消息和长度保留空间
@@ -237,6 +240,7 @@ message_thread_func(void *arg) {
 
         if (send(sock, buffer, msg_len + 4, 0) < 0) {
             printf("Send failed\n");
+            msg_queue.stop = 1;
             close_tcp();
         }
 
@@ -271,7 +275,7 @@ profiler_hook_time(lua_State *L, lua_Debug *ar) {
             const char *str = concat(ar->source, ar->name, ar->linedefined, 1);
             enqueue_message(&msg_queue, str);
         }
-    } else if (ar->event == LUA_HOOKRET || ar->event == LUA_HOOKTAILRET) {
+    } else if (ar->event == LUA_HOOKRET ) {
         if (lua_getinfo(L, "Sn", ar) != 0) {
             const char *str = concat(ar->source, ar->name, ar->linedefined, 0);
             enqueue_message(&msg_queue, str);

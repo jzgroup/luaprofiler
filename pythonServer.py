@@ -35,7 +35,7 @@ def start_server():
 
                     if key not in messageTab:
                         messageTab[key] = {
-                            "count": 0,
+                            "count": 1,
                             "timeStack": [],
                             "totalTime": 0.0,
                         }
@@ -56,9 +56,18 @@ def start_server():
         finally:
             # print(f"Total messages received: {count}")
             client_socket.close()
-            # 打印统计数据
+            # # 打印统计数据
+            # for key, data in messageTab.items():
+            #     print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.10f}s")
+
+            #根据 count排序一下
+            messageTab = dict(sorted(messageTab.items(), key=lambda x: x[1]['count'], reverse=True))
             for key, data in messageTab.items():
-                print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.10f}s")
+                # 如果key有@不显示
+                if not key.startswith('@'):
+                    print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.2f}s")
+                # print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.2f}s")
+            messageTab = {}
             print(f"Connection from {addr} has been closed")
 
 

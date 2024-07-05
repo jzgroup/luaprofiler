@@ -83,6 +83,7 @@ is_lightcfunction(lua_State *L, int idx) {
 
 static int sock = 0;
 static int port = 8080;
+static int isCheak = 1;
 
 // 创建tcp
 static void
@@ -250,6 +251,7 @@ message_thread_func(void *arg) {
             printf("Send failed\n");
             msg_queue.stop = 1;
             close_tcp();
+            isCheak = 0;
         }
 
         free(node);
@@ -278,6 +280,9 @@ stop_message_thread() {
 
 static void
 profiler_hook_time(lua_State *L, lua_Debug *ar) {
+    if( isCheak == 0 ){
+        return;
+    }
     struct timeval tv;
     gettimeofday(&tv, NULL); // 获取当前时间并存储在 tv 中
 
@@ -323,7 +328,7 @@ lstart(lua_State *L) {
 
     lua_pushvalue(L, -1);
     lua_rawsetp(L, LUA_REGISTRYINDEX, cL);
-
+    isCheak = 1;
     create_tcp();
     init_message_queue(&msg_queue);
     start_message_thread();
@@ -333,6 +338,7 @@ lstart(lua_State *L) {
 
 static int
 lstop(lua_State *L) {
+    isCheak = 0;
     lua_State *cL = L;
     if (lua_isthread(L, 1)) {
         cL = lua_tothread(L, 1);

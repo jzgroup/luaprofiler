@@ -11,3 +11,14 @@
 
 没有很复杂，基于云风的,扩充了一些，并写了线程，而且通过tcp将信息传给其他程序
 方便我后续写工具
+
+1. 使用python3 pythonServer 启动下python服务器
+2. 在你想检测lua代码的地方
+   ```
+   local p = require("profiler")
+   -- 启动一下，对于整个场景检测，我是放在onEnterTransitionFinish
+    p.start()  / p.start(端口号   默认是8080)
+
+   -- 需要停止的地方，停止一下，对于整个场景检测，我是放在onDestructor
+    p.stop()
+   ```

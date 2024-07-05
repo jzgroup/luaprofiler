@@ -82,6 +82,7 @@ is_lightcfunction(lua_State *L, int idx) {
 
 
 static int sock = 0;
+static int port = 8080;
 
 // 创建tcp
 static void
@@ -95,7 +96,7 @@ create_tcp() {
     }
 
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(8080);
+    serv_addr.sin_port = htons(port);
 
     // 转换IP地址
     if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
@@ -318,6 +319,7 @@ lstart(lua_State *L) {
         cL = lua_tothread(L, 1);
         args = 1;
     }
+    port = (int)luaL_optinteger(L, args+1, 8080);
 
     lua_pushvalue(L, -1);
     lua_rawsetp(L, LUA_REGISTRYINDEX, cL);

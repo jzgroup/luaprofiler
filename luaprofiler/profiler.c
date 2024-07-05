@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #if LUA_VERSION_NUM == 501
 
@@ -111,13 +112,17 @@ create_tcp() {
 #define MAX_STRING_SIZE 256
 
 // 拼接字符串并返回指向静态缓冲区的指针
-static const char* concat(const char* source, const char* name, int line, int event) {
+static const char* concat(const char* source, const char* name, int line, int event, struct timeval *tv) {
     static char result[MAX_STRING_SIZE];
+    if (source == NULL || name == NULL || tv == NULL) {
+        fprintf(stderr, "concat: Invalid arguments\n");
+        return NULL;
+    }
 
-    if    (event == 1) {
-        snprintf(result, MAX_STRING_SIZE, "0+%s:%d:%s", source, line, name);
+    if (event == 1) {
+        snprintf(result, MAX_STRING_SIZE, "0+%s:%d:%s:%ld.%06ld", source, line, name, tv->tv_sec, tv->tv_usec);
     } else {
-        snprintf(result, MAX_STRING_SIZE, "1+%s:%d:%s", source, line, name);
+        snprintf(result, MAX_STRING_SIZE, "1+%s:%d:%s:%ld.%06ld", source, line, name, tv->tv_sec, tv->tv_usec);
     }
 
     return result;
@@ -136,6 +141,7 @@ close_tcp() {
 // 定义消息队列节点
 typedef struct message_node {
     char msg[MAX_STRING_SIZE];
+    struct timeval tv;
     struct message_node *next;
 } message_node;
 
@@ -165,7 +171,7 @@ static void
 free_message_queue(message_queue *queue) {
     while (queue->head) {
         message_node *node = queue->head;
-        queue->head = node->        next;
+        queue->head = node->next;
         free(node);
     }
     pthread_mutex_destroy(&queue->mutex);
@@ -174,7 +180,7 @@ free_message_queue(message_queue *queue) {
 
 // 将消息放入队列
 static void
-enqueue_message(message_queue *queue, const char *msg) {
+enqueue_message(message_queue *queue, const char *msg, struct timeval *tv) {
     message_node *node = (message_node *)malloc(sizeof(message_node));
     if (!node) {
         perror("Failed to allocate memory for message node");
@@ -182,6 +188,7 @@ enqueue_message(message_queue *queue, const char *msg) {
     }
     strncpy(node->msg, msg, MAX_STRING_SIZE - 1);
     node->msg[MAX_STRING_SIZE - 1] = '\0';
+    node->tv = *tv; // 复制时间戳
     node->next = NULL;
 
     pthread_mutex_lock(&queue->mutex);
@@ -229,7 +236,7 @@ message_thread_func(void *arg) {
         if (msg_queue.stop == 1) {
             break;
         }
-        
+
         uint32_t msg_len = strlen(node->msg);
         uint32_t net_msg_len = htonl(msg_len); // 转换为网络字节序
         char buffer[MAX_STRING_SIZE + 4]; // 为消息和长度保留空间
@@ -270,15 +277,35 @@ stop_message_thread() {
 
 static void
 profiler_hook_time(lua_State *L, lua_Debug *ar) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL); // 获取当前时间并存储在 tv 中
+
     if (ar->event == LUA_HOOKCALL) {
         if (lua_getinfo(L, "Sn", ar) != 0) {
-            const char *str = concat(ar->source, ar->name, ar->linedefined, 1);
-            enqueue_message(&msg_queue, str);
+            const char *source = ar->source ? ar->source : "[unknown]";
+            const char *name = ar->name ? ar->name : "[unknown]";
+            int linedefined = ar->linedefined;
+
+
+            const char *str = concat(source, name, linedefined, 1, &tv);
+            if (str != NULL) {
+                enqueue_message(&msg_queue, str, &tv);
+            } else {
+                fprintf(stderr, "profiler_hook_time: concat returned NULL for LUA_HOOKCALL\n");
+            }
         }
-    } else if (ar->event == LUA_HOOKRET ) {
+    } else if (ar->event == LUA_HOOKRET) {
         if (lua_getinfo(L, "Sn", ar) != 0) {
-            const char *str = concat(ar->source, ar->name, ar->linedefined, 0);
-            enqueue_message(&msg_queue, str);
+            const char *source = ar->source ? ar->source : "[unknown]";
+            const char *name = ar->name ? ar->name : "[unknown]";
+            int linedefined = ar->linedefined;
+
+            const char *str = concat(source, name, linedefined, 0, &tv);
+            if (str != NULL) {
+                enqueue_message(&msg_queue, str, &tv);
+            } else {
+                fprintf(stderr, "profiler_hook_time: concat returned NULL for LUA_HOOKRET\n");
+            }
         }
     }
 }
@@ -325,7 +352,6 @@ int luaopen_profiler(lua_State *L) {
     const struct luaL_Reg l[] = {
             { "start", lstart },
             { "stop", lstop },
-//        { "info", linfo },
             { NULL, NULL },
     };
 

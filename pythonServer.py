@@ -27,12 +27,18 @@ def start_server():
                 segments = message_from_client.split("+")
 
                 key = segments[1]
-                # 检查segments长度和内容
+                #检查segments长度和内容
                 if len(segments) > 1:
-                    key = segments[1]
                     action = segments[0]
-                    current_time = time.time()
+                    #根据：分割key
+                    keyTab = key.split(":")
+                    #key等于除了最后一位相加
+                    key = ":".join(keyTab[:-1])
 
+             
+                    #最后一位是时间
+                    current_time = float(keyTab[-1])
+              
                     if key not in messageTab:
                         messageTab[key] = {
                             "count": 1,
@@ -65,7 +71,7 @@ def start_server():
             for key, data in messageTab.items():
                 # 如果key有@不显示
                 if not key.startswith('@'):
-                    print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.2f}s")
+                    print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.6f}s")
                 # print(f"Key: {key}, Count: {data['count']}, Total Time: {data['totalTime']:.2f}s")
             messageTab = {}
             print(f"Connection from {addr} has been closed")
